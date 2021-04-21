@@ -22,13 +22,13 @@ LRUReplacer::LRUReplacer(size_t num_pages) {
 LRUReplacer::~LRUReplacer() = default;
 
 bool LRUReplacer::Victim(frame_id_t *frame_id) {
-    if (this->pages.size() <= 0) {
+    if (this->pages.empty()) {
         return false;
-    } else {
-        *frame_id = this->pages.front();
-        this->pages.pop_front();
-        return true;
-    }
+    } 
+    
+    *frame_id = this->pages.front();
+    this->pages.pop_front();
+    return true;
 }
 
 void LRUReplacer::Pin(frame_id_t frame_id) {
@@ -42,7 +42,7 @@ void LRUReplacer::Pin(frame_id_t frame_id) {
 
 void LRUReplacer::Unpin(frame_id_t frame_id) {
     // not found
-    if(std::find(this->pages.begin(), this->pages.end(), frame_id) == this->pages.end()) {
+    if (std::find(this->pages.begin(), this->pages.end(), frame_id) == this->pages.end()) {
         if (this->pages.size() >= this->num_pages) {
            this->pages.pop_front();
         }
