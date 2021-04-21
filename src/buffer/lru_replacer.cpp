@@ -24,8 +24,8 @@ LRUReplacer::~LRUReplacer() = default;
 bool LRUReplacer::Victim(frame_id_t *frame_id) {
     if (this->pages.empty()) {
         return false;
-    } 
-    
+    }
+
     *frame_id = this->pages.front();
     this->pages.pop_front();
     return true;
