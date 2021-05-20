@@ -43,9 +43,6 @@ void LRUReplacer::Pin(frame_id_t frame_id) {
 void LRUReplacer::Unpin(frame_id_t frame_id) {
     // not found
     if (std::find(this->pages.begin(), this->pages.end(), frame_id) == this->pages.end()) {
-        if (this->pages.size() >= this->num_pages) {
-           this->pages.pop_front();
-        }
         this->pages.push_back(frame_id);
     }
 }
