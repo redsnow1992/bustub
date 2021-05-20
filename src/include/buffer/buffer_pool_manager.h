@@ -152,6 +152,14 @@ class BufferPoolManager {
    */
   void FlushAllPagesImpl();
 
+  /**
+   * get frame_id by page_id
+   * @param page_id id of page to be located
+   * @param frame_id id of frame to be returned
+   * @return if find the page_id in page_table_, false otherwise
+   */
+  bool GetFrameIdByPageId(page_id_t page_id, frame_id_t *frame_id);
+
   /** Number of pages in the buffer pool. */
   size_t pool_size_;
   /** Array of buffer pool pages. */
