@@ -56,21 +56,31 @@ TEST(BufferPoolManagerTest, BinaryDataTest) {
   for (size_t i = 1; i < buffer_pool_size; ++i) {
     EXPECT_NE(nullptr, bpm->NewPage(&page_id_temp));
   }
-
+  for (auto it = bpm->page_table_.begin(); it != bpm->page_table_.end(); ++it) {
+    printf("page: %d, frame: %d\n", it->first, it->second);
+  }
   // Scenario: Once the buffer pool is full, we should not be able to create any new pages.
   for (size_t i = buffer_pool_size; i < buffer_pool_size * 2; ++i) {
     EXPECT_EQ(nullptr, bpm->NewPage(&page_id_temp));
   }
-
+  for (auto it = bpm->page_table_.begin(); it != bpm->page_table_.end(); ++it) {
+    printf("page: %d, frame: %d\n", it->first, it->second);
+  }
   // Scenario: After unpinning pages {0, 1, 2, 3, 4} and pinning another 4 new pages,
   // there would still be one cache frame left for reading page 0.
   for (int i = 0; i < 5; ++i) {
     EXPECT_EQ(true, bpm->UnpinPage(i, true));
     bpm->FlushPage(i);
   }
+  for (auto it = bpm->page_table_.begin(); it != bpm->page_table_.end(); ++it) {
+    printf("page: %d, frame: %d\n", it->first, it->second);
+  }
   for (int i = 0; i < 5; ++i) {
     EXPECT_NE(nullptr, bpm->NewPage(&page_id_temp));
     bpm->UnpinPage(page_id_temp, false);
+  }
+  for (auto it = bpm->page_table_.begin(); it != bpm->page_table_.end(); ++it) {
+    printf("page: %d, frame: %d\n", it->first, it->second);
   }
   // Scenario: We should be able to fetch the data we wrote a while ago.
   page0 = bpm->FetchPage(0);

@@ -11,7 +11,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "buffer/buffer_pool_manager.h"
-
 #include <list>
 #include <unordered_map>
 
@@ -48,13 +47,14 @@ Page *BufferPoolManager::FetchPageImpl(page_id_t page_id) {
     this->replacer_->Pin(frame_id);
     return this->GetPages() + frame_id;
   }
-
   Page *page;
   if (!this->free_list_.empty()) {  // free frame
-    frame_id = this->free_list_.back();
-    this->free_list_.pop_back();
+    frame_id = this->free_list_.front();
+    this->free_list_.pop_front();
   } else {
-    this->replacer_->Victim(&frame_id);
+    if (!this->replacer_->Victim(&frame_id)) {
+      return nullptr;
+    }
     auto *old_page = this->GetPages()+ frame_id;
     page_id_t old_page_id;
     auto pos = std::find_if(this->page_table_.begin(), this->page_table_.end(),
@@ -76,7 +76,9 @@ Page *BufferPoolManager::FetchPageImpl(page_id_t page_id) {
   this->page_table_[page_id] = frame_id;
 
   this->replacer_->Pin(frame_id);
-  page->pin_count_ += 1;
+  if (page->pin_count_ <= 0) {
+    page->pin_count_ = 1;
+  }
 
   return page;
 }
@@ -84,14 +86,23 @@ Page *BufferPoolManager::FetchPageImpl(page_id_t page_id) {
 bool BufferPoolManager::UnpinPageImpl(page_id_t page_id, bool is_dirty) {
   frame_id_t frame_id;
   if (this->GetFrameIdByPageId(page_id, &frame_id)) {
-    this->replacer_->Unpin(frame_id);
     auto page = this->GetPages() + frame_id;
+    int old_pin_count = page->pin_count_;
+
+    if (old_pin_count == 1) {
+      page->pin_count_ = 0;
+      this->replacer_->Unpin(frame_id);
+    } else if (old_pin_count > 1) {
+      page->pin_count_ -= 1;
+    } else {
+      // nop
+    }
+
     page->is_dirty_ = is_dirty;
 
-    if (page->GetPinCount() <= 0) {
+    if (old_pin_count <= 0) {
       return false;
     } else {
-      page->pin_count_ -= 1;
       return true;
     }
   }
@@ -126,28 +137,40 @@ Page *BufferPoolManager::NewPageImpl(page_id_t *page_id) {
   // 2.   Pick a victim page P from either the free list or the replacer. Always pick from the free list first.
   // 3.   Update P's metadata, zero out memory and add P to the page table.
   // 4.   Set the page ID output parameter. Return a pointer to P.
-  *page_id = this->disk_manager_->AllocatePage();
 
   if (this->page_table_.size() >= pool_size_) {
-    page_id_t unpin_page_id;
+    // page_id_t unpin_page_id;
     auto pos = std::find_if(this->page_table_.begin(), this->page_table_.end(),
-                            [&unpin_page_id, this](auto pair)
+                            [this](auto pair)
                             { return (this->GetPages()+pair.second)->GetPinCount() <= 0; });
     if (pos == this->page_table_.end()) {
       return nullptr;
     }
   }
+  
+  *page_id = this->disk_manager_->AllocatePage();
+
+  // a new page_id, and a new/old frame_id
 
   frame_id_t frame_id;
+  page_id_t old_page_id;
   if (!this->free_list_.empty()) {
-    frame_id = this->free_list_.back();
-    this->free_list_.pop_back();
+    frame_id = this->free_list_.front();
+    this->free_list_.pop_front();
   } else {
-    this->replacer_->Victim(&frame_id);
+    this->replacer_->Victim(&frame_id);  // must be true
+    auto pos = std::find_if(this->page_table_.begin(), this->page_table_.end(),
+                            [&frame_id](auto pair) { return pair.second == frame_id; });
+    old_page_id = pos->first;
   }
   auto page = this->GetPages() + frame_id;
-  page->ResetMemory();
+  if (page->IsDirty()) {
+    this->disk_manager_->WritePage(old_page_id, page->GetData());
+    page->ResetMemory();
+  }
+
   this->page_table_[*page_id] = frame_id;
+  page->pin_count_ += 1;
 
   return page;
 }
